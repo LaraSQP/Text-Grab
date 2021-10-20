@@ -160,6 +160,8 @@ namespace Text_Grab
 
         private void Window_Initialized(object sender, EventArgs e)
         {
+            base.OnSourceInitialized(e);
+            this.SetPlacement(Settings.Default.EditTextPlacement);
             PassedTextControl.PreviewMouseWheel += HandlePreviewMouseWheel;
         }
 
@@ -765,6 +767,9 @@ namespace Text_Grab
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            Settings.Default.EditTextPlacement = this.GetPlacement();
+            Settings.Default.Save();
+
             WindowCollection allWindows = System.Windows.Application.Current.Windows;
 
             foreach (Window window in allWindows)
@@ -909,7 +914,7 @@ namespace Text_Grab
 
             ContextMenu? baseContextMenu = this.FindResource("ContextMenuResource") as ContextMenu;
 
-            while (baseContextMenu != null 
+            while (baseContextMenu != null
                 && baseContextMenu.Items.Count > numberOfContextMenuItems)
             {
                 baseContextMenu.Items.RemoveAt(0);

@@ -1,6 +1,8 @@
 ﻿using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Interop;
 using Text_Grab.Views;
+using WindowPlacementExample;
 
 namespace Text_Grab.Utilities
 {
@@ -100,6 +102,16 @@ namespace Text_Grab.Utilities
             // No Window Found, open a new one
             T newWindow = new T();
             newWindow.Show();
+        }
+
+        public static void SetPlacement(this Window window, string placementXml)
+        {
+            WindowPlacement.SetPlacement(new WindowInteropHelper(window).Handle, placementXml);
+        }
+
+        public static string GetPlacement(this Window window)
+        {
+            return WindowPlacement.GetPlacement(new WindowInteropHelper(window).Handle);
         }
     }
 }
