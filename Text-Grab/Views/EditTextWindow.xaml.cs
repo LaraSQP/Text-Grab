@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -18,6 +19,7 @@ using Text_Grab.Controls;
 using Text_Grab.Properties;
 using Text_Grab.Utilities;
 using Text_Grab.Views;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
 namespace Text_Grab
@@ -140,12 +142,9 @@ namespace Text_Grab
             _ = UnstackCommand.InputGestures.Add(new KeyGesture(Key.U, ModifierKeys.Control));
             _ = CommandBindings.Add(new CommandBinding(UnstackCommand, UnstackExecuted));
 
-
             PassedTextControl.ContextMenu = this.FindResource("ContextMenuResource") as ContextMenu;
             if (PassedTextControl.ContextMenu != null)
                 numberOfContextMenuItems = PassedTextControl.ContextMenu.Items.Count;
-
-            SetFontFromSettings();
 
             string inputLang = InputLanguageManager.Current.CurrentInputLanguage.Name;
             XmlLanguage lang = XmlLanguage.GetLanguage(inputLang);
@@ -163,11 +162,36 @@ namespace Text_Grab
                 LaunchFullscreenOnLoad.IsChecked = true;
                 WindowState = WindowState.Minimized;
             }
+
+            Windows.ApplicationModel.DataTransfer.Clipboard.ContentChanged += Clipboard_ContentChanged;
+        }
+
+        private async void Clipboard_ContentChanged(object? sender, object e)
+        {
+            {
+                DataPackageView dataPackageView = Windows.ApplicationModel.DataTransfer.Clipboard.GetContent();
+                if (dataPackageView.Contains(StandardDataFormats.Text))
+                {
+                    string text = await dataPackageView.GetTextAsync();
+                    if (string.IsNullOrEmpty(text) == false)
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(new Action(() => { AddCopiedTextToTextBox(text); }));
+                    }
+                }
+            };
+        }
+
+        private void AddCopiedTextToTextBox(string textToAdd)
+        {
+            if (ClipboardWatcherMenuItem.IsChecked)
+                PassedTextControl.AppendText(Environment.NewLine + textToAdd);
         }
 
         private void Window_Initialized(object sender, EventArgs e)
         {
             PassedTextControl.PreviewMouseWheel += HandlePreviewMouseWheel;
+            WindowUtilities.SetWindowPosition(this);
+            SetFontFromSettings();
         }
 
         private void SetFontFromSettings()
@@ -188,6 +212,7 @@ namespace Text_Grab
         private void PassedTextControl_TextChanged(object sender, TextChangedEventArgs e)
         {
             PassedTextControl.Focus();
+            UpdateLineAndColumnText();
         }
 
         private void SelectionContainsNewLinesCmdCanExecute(object sender, CanExecuteRoutedEventArgs e)
@@ -851,6 +876,12 @@ namespace Text_Grab
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            string windowSizeAndPosition = $"{this.Left},{this.Top},{this.Width},{this.Height}";
+            Properties.Settings.Default.EditTextWindowSizeAndPosition = windowSizeAndPosition;
+            Properties.Settings.Default.Save();
+
+            Windows.ApplicationModel.DataTransfer.Clipboard.ContentChanged -= Clipboard_ContentChanged;
+
             WindowCollection allWindows = System.Windows.Application.Current.Windows;
 
             foreach (Window window in allWindows)
@@ -868,6 +899,8 @@ namespace Text_Grab
                     findAndReplaceWindow.Close();
                 }
             }
+
+            WindowUtilities.ShouldShutDown();
         }
 
         private void ReplaceReservedCharsCmdExecuted(object sender, ExecutedRoutedEventArgs e)
@@ -1047,6 +1080,91 @@ namespace Text_Grab
         private void RemoveDuplicateLines_Click(object sender, RoutedEventArgs e)
         {
             PassedTextControl.Text = PassedTextControl.Text.RemoveDuplicateLines();
+        }
+
+        private void UpdateLineAndColumnText()
+        {
+            if (PassedTextControl.SelectionLength < 1)
+            {
+                int lineNumber = PassedTextControl.GetLineIndexFromCharacterIndex(PassedTextControl.CaretIndex);
+                int columnNumber = PassedTextControl.CaretIndex - PassedTextControl.GetCharacterIndexFromLineIndex(lineNumber);
+
+                BottomBarText.Text = $"Ln {lineNumber + 1}, Col {columnNumber}";
+            }
+            else
+            {
+                int selectionStartIndex = PassedTextControl.SelectionStart;
+                int selectionStopIndex = PassedTextControl.SelectionStart + PassedTextControl.SelectionLength;
+
+                int selStartLine = PassedTextControl.GetLineIndexFromCharacterIndex(selectionStartIndex);
+                int selStartCol = selectionStartIndex - PassedTextControl.GetCharacterIndexFromLineIndex(selStartLine);
+                int selStopLine = PassedTextControl.GetLineIndexFromCharacterIndex(selectionStopIndex); ;
+                int selStopCol = selectionStopIndex - PassedTextControl.GetCharacterIndexFromLineIndex(selStopLine); ;
+                int selLength = PassedTextControl.SelectionLength;
+                int numbOfSelectedLines = selStopLine - selStartLine;
+
+                if (numbOfSelectedLines > 0)
+                {
+                    BottomBarText.Text = $"Ln {selStartLine + 1}:{selStopLine + 1}, Col {selStartCol}:{selStopCol}, Len {selLength}, Lines {numbOfSelectedLines + 1}";
+                }
+                else
+                {
+                    BottomBarText.Text = $"Ln {selStartLine + 1}, Col {selStartCol}:{selStopCol}, Len {selLength}";
+                }
+            }
+        }
+
+        private void PassedTextControl_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            UpdateLineAndColumnText();
+        }
+
+        private void PassedTextControl_SelectionChanged(object sender, RoutedEventArgs e)
+        {
+            UpdateLineAndColumnText();
+        }
+
+        private void ListFilesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            FolderBrowserDialog folderBrowserDialog1 = new FolderBrowserDialog();
+            DialogResult result = folderBrowserDialog1.ShowDialog();
+
+            if (result is System.Windows.Forms.DialogResult.OK)
+            {
+                string chosenFolderPath = folderBrowserDialog1.SelectedPath;
+                try
+                {
+                    IEnumerable<String> files = Directory.EnumerateFiles(chosenFolderPath);
+                    IEnumerable<String> folders = Directory.EnumerateDirectories(chosenFolderPath);
+                    StringBuilder listOfNames = new StringBuilder();
+                    listOfNames.Append(chosenFolderPath).Append(Environment.NewLine).Append(Environment.NewLine);
+                    foreach (string folder in folders)
+                    {
+                        listOfNames.Append($"{folder.Substring(1 + chosenFolderPath.Length, (folder.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
+                    }
+                    foreach (string file in files)
+                    {
+                        listOfNames.Append($"{file.Substring(1 + chosenFolderPath.Length, (file.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
+                    }
+
+                    PassedTextControl.AppendText(listOfNames.ToString());
+                }
+                catch (System.Exception ex)
+                {
+                    PassedTextControl.AppendText($"Failed: {ex.Message}{Environment.NewLine}");
+                }
+            }
+        }
+
+        private async void FSGDelayMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            await Task.Delay(2000);
+            WindowUtilities.LaunchFullScreenGrab(true, true);
+        }
+
+        private void FSGFreezeenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            WindowUtilities.LaunchFullScreenGrab(true, true);
         }
     }
 }

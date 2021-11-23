@@ -1,5 +1,8 @@
-﻿using System.Windows;
+﻿using System.Collections.Generic;
+using System.Drawing;
+using System.Windows;
 using System.Windows.Forms;
+using Text_Grab.Properties;
 using Text_Grab.Views;
 
 namespace Text_Grab.Utilities
@@ -19,14 +22,64 @@ namespace Text_Grab.Utilities
             }
         }
 
-        public static void LaunchFullScreenGrab(bool openAnyway = false)
+        public static void SetWindowPosition(Window passedWindow)
+        {
+            string storedPostionString = "";
+
+            if (passedWindow is EditTextWindow)
+                storedPostionString = Properties.Settings.Default.EditTextWindowSizeAndPosition;
+
+            if (passedWindow is GrabFrame)
+                storedPostionString = Properties.Settings.Default.GrabFrameWindowSizeAndPosition;
+
+            List<string> storedPostion = new(storedPostionString.Split(','));
+
+            bool isStoredRectWithinScreen = false;
+
+            if (storedPostion != null
+                && storedPostion.Count == 4)
+            {
+                bool couldParseAll = false;
+                couldParseAll = double.TryParse(storedPostion[0], out double parsedX);
+                couldParseAll = double.TryParse(storedPostion[1], out double parsedY);
+                couldParseAll = double.TryParse(storedPostion[2], out double parsedWid);
+                couldParseAll = double.TryParse(storedPostion[3], out double parsedHei);
+                Rectangle storedSize = new Rectangle((int)parsedX, (int)parsedY, (int)parsedWid, (int)parsedHei);
+                Screen[] allScreens = Screen.AllScreens;
+                WindowCollection allWindows = System.Windows.Application.Current.Windows;
+
+                if (parsedHei < 10 || parsedWid < 10)
+                    return;
+
+                foreach (Screen screen in allScreens)
+                {
+                    if (screen.WorkingArea.IntersectsWith(storedSize))
+                        isStoredRectWithinScreen = true;
+                }
+
+                if (isStoredRectWithinScreen == true && couldParseAll == true)
+                {
+                    passedWindow.Left = storedSize.X;
+                    passedWindow.Top = storedSize.Y;
+                    passedWindow.Width = storedSize.Width;
+                    passedWindow.Height = storedSize.Height;
+
+                    return;
+                }
+            }
+        }
+
+        public static void LaunchFullScreenGrab(bool openAnyway = false, bool setBackgroundImage = false)
         {
             Screen[] allScreens = Screen.AllScreens;
             WindowCollection allWindows = System.Windows.Application.Current.Windows;
 
+            List<FullscreenGrab> allFullscreenGrab = new();
+
             foreach (Screen screen in allScreens)
             {
                 bool screenHasWindow = true;
+                bool isEditWindowOpen = false;
 
                 foreach (Window window in allWindows)
                 {
@@ -35,6 +88,9 @@ namespace Text_Grab.Utilities
                             (int)(window.Left + (window.Width / 2)),
                             (int)(window.Top + (window.Height / 2)));
                     screenHasWindow = screen.Bounds.Contains(windowCenter);
+
+                    if (window is EditTextWindow)
+                        isEditWindowOpen = true;
                 }
 
                 if (allWindows.Count < 1)
@@ -47,7 +103,8 @@ namespace Text_Grab.Utilities
                         WindowStartupLocation = WindowStartupLocation.Manual,
                         Width = 200,
                         Height = 200,
-                        IsFromEditWindow = openAnyway,
+                        IsFromEditWindow = isEditWindowOpen,
+                        IsFreeze = setBackgroundImage,
                         WindowState = WindowState.Normal
                     };
 
@@ -63,6 +120,15 @@ namespace Text_Grab.Utilities
 
                     fullscreenGrab.Show();
                     fullscreenGrab.Activate();
+                    allFullscreenGrab.Add(fullscreenGrab);
+                }
+            }
+
+            if (setBackgroundImage == true)
+            {
+                foreach (FullscreenGrab fsg in allFullscreenGrab)
+                {
+                    fsg.SetImageToBackground();
                 }
             }
         }
@@ -80,8 +146,9 @@ namespace Text_Grab.Utilities
                     if (etw.WindowState == WindowState.Minimized)
                         etw.WindowState = WindowState.Normal;
                 }
-
             }
+
+            ShouldShutDown();
         }
 
         internal static void OpenOrActivateWindow<T>() where T : Window, new()
@@ -100,6 +167,31 @@ namespace Text_Grab.Utilities
             // No Window Found, open a new one
             T newWindow = new T();
             newWindow.Show();
+        }
+
+        public static void ShouldShutDown()
+        {
+            WindowCollection allWindows = System.Windows.Application.Current.Windows;
+
+            bool shouldShutDown = false;
+
+            if (Settings.Default.RunInTheBackground == true)
+            {
+                if (App.Current is App app)
+                {
+                    if (app.NumberOfRunningInstances > 1
+                        && app.TextGrabIcon == null)
+                        shouldShutDown = true;
+                }
+            }
+            else
+            {
+                if (allWindows.Count <= 1)
+                    shouldShutDown = true;
+            }
+
+            if (shouldShutDown == true)
+                System.Windows.Application.Current.Shutdown();
         }
     }
 }
