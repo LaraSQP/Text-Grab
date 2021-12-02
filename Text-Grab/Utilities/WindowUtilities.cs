@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Windows;
 using System.Windows.Forms;
@@ -180,16 +181,18 @@ namespace Text_Grab.Utilities
                 if (App.Current is App app)
                 {
                     if (app.NumberOfRunningInstances > 1
-                        && app.TextGrabIcon == null)
+                        && app.TextGrabIcon == null
+                        && allWindows.Count < 1)
                         shouldShutDown = true;
                 }
             }
             else
             {
-                if (allWindows.Count <= 1)
+                if (allWindows.Count < 1)
                     shouldShutDown = true;
             }
 
+            Debug.WriteLine($"Should Shut Down? {shouldShutDown}");
             if (shouldShutDown == true)
                 System.Windows.Application.Current.Shutdown();
         }
