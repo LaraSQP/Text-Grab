@@ -30,9 +30,9 @@ namespace Text_Grab.Views
         double xShiftDelta;
         double yShiftDelta;
 
-        public bool IsFromEditWindow { get; set; } = false;
+        public EditTextWindow? EditWindow { get; set; }
 
-        private string? textFromOCR;
+        public string? textFromOCR;
 
         public bool IsFreeze { get; set; } = false;
 
@@ -226,15 +226,15 @@ namespace Text_Grab.Views
                 textFromOCR = grabbedText;
 
                 if (Settings.Default.NeverAutoUseClipboard == false
-                    && IsFromEditWindow == false)
+                    && EditWindow is null)
                     Clipboard.SetText(grabbedText);
 
                 if (Settings.Default.ShowToast
-                    && IsFromEditWindow == false)
+                    && EditWindow is null)
                     NotificationUtilities.ShowToast(grabbedText);
 
-                if (IsFromEditWindow == true)
-                    WindowUtilities.AddTextToOpenWindow(grabbedText);
+                if (EditWindow is not null)
+                    EditWindow.AddThisText(grabbedText);
 
                 WindowUtilities.CloseAllFullscreenGrabs();
             }
@@ -244,23 +244,6 @@ namespace Text_Grab.Views
                 clippingGeometry.Rect = new Rect(
                 new System.Windows.Point(0, 0),
                 new System.Windows.Size(0, 0));
-            }
-        }
-
-        private void Window_Closed(object sender, EventArgs e)
-        {
-            if (textFromOCR is null
-                || IsFromEditWindow == true)
-                return;
-
-            if (Settings.Default.TryInsert == true)
-            {
-                foreach (char c in textFromOCR)
-                {
-                    if (char.IsLetterOrDigit(c)
-                        || char.IsWhiteSpace(c))
-                        System.Windows.Forms.SendKeys.SendWait(c.ToString());
-                }
             }
         }
     }
