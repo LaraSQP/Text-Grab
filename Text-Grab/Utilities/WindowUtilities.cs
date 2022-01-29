@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Forms;
 using Text_Grab.Properties;
@@ -149,14 +151,14 @@ namespace Text_Grab.Utilities
                     if (string.IsNullOrWhiteSpace(fsg.textFromOCR) == false)
                         stringFromOCR = fsg.textFromOCR;
 
-                    isFromEditWindow = fsg.EditWindow is not null;
+                    if (fsg.EditWindow is not null)
+                    {
+                        isFromEditWindow = true;
+                        if (fsg.EditWindow.WindowState == WindowState.Minimized)
+                            fsg.EditWindow.WindowState = WindowState.Normal;
+                    }
 
                     fsg.Close();
-                }
-                if (window is EditTextWindow etw)
-                {
-                    if (etw.WindowState == WindowState.Minimized)
-                        etw.WindowState = WindowState.Normal;
                 }
             }
 
@@ -164,17 +166,24 @@ namespace Text_Grab.Utilities
                 && string.IsNullOrWhiteSpace(stringFromOCR) == false
                 && isFromEditWindow == false)
             {
-                Debug.WriteLine("String From OCR:" + stringFromOCR);
-
-                foreach (char c in stringFromOCR)
-                {
-                    if (char.IsLetterOrDigit(c)
-                        || char.IsWhiteSpace(c))
-                        System.Windows.Forms.SendKeys.SendWait(c.ToString());
-                }
+                TryInsertString(stringFromOCR);
             }
 
             ShouldShutDown();
+        }
+
+        internal static void TryInsertString(string stringToInsert)
+        {
+            string stringToSend = Regex.Replace(stringToInsert, "[+^%~()\\{\\}\\[\\]]", "{$0}");
+
+            try
+            {
+                SendKeys.SendWait(stringToSend);
+            }
+            catch (ArgumentException argEx)
+            {
+                Debug.WriteLine($"Failed to Send Keys: {argEx.Message}");
+            }
         }
 
         internal static void OpenOrActivateWindow<T>() where T : Window, new()
@@ -217,7 +226,6 @@ namespace Text_Grab.Utilities
                     shouldShutDown = true;
             }
 
-            Debug.WriteLine($"Should Shut Down? {shouldShutDown}");
             if (shouldShutDown == true)
                 System.Windows.Application.Current.Shutdown();
         }
