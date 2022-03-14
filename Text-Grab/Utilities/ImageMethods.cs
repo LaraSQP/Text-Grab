@@ -12,6 +12,8 @@ using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Text_Grab.Models;
+using Text_Grab.Views;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
@@ -100,13 +102,28 @@ namespace Text_Grab
 
         internal static ImageSource GetWindowBoundsImage(Window passedWindow)
         {
+            bool isGrabFrame = false;
+            if (passedWindow is GrabFrame)
+                isGrabFrame = true;
+
             DpiScale dpi = VisualTreeHelper.GetDpi(passedWindow);
-            Bitmap bmp = new((int)(passedWindow.ActualWidth * dpi.DpiScaleX), (int)(passedWindow.ActualHeight * dpi.DpiScaleY), System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            Graphics g = Graphics.FromImage(bmp);
+            int windowWidth = (int)(passedWindow.ActualWidth * dpi.DpiScaleX);
+            int windowHeight = (int)(passedWindow.ActualHeight * dpi.DpiScaleY);
 
             System.Windows.Point absPosPoint = passedWindow.GetAbsolutePosition();
-            int thisCorrectedLeft = (int)absPosPoint.X;
-            int thisCorrectedTop = (int)absPosPoint.Y;
+            int thisCorrectedLeft = (int)(absPosPoint.X * dpi.DpiScaleX);
+            int thisCorrectedTop = (int)(absPosPoint.Y * dpi.DpiScaleY);
+
+            if (isGrabFrame == true)
+            {
+                thisCorrectedLeft += (int)(2 * dpi.DpiScaleX);
+                thisCorrectedTop += (int)(26 * dpi.DpiScaleY);
+                windowWidth -= (int)(4 * dpi.DpiScaleX);
+                windowHeight -= (int)(70 * dpi.DpiScaleY);
+            }
+
+            Bitmap bmp = new(windowWidth, windowHeight, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            Graphics g = Graphics.FromImage(bmp);
 
             g.CopyFromScreen(thisCorrectedLeft, thisCorrectedTop, 0, 0, bmp.Size, CopyPixelOperation.SourceCopy);
             return BitmapToImageSource(bmp);
@@ -138,6 +155,15 @@ namespace Text_Grab
                 return "";
             }
 
+            bool isCJKLang = false;
+
+            if (selectedLanguage.LanguageTag.StartsWith("zh", StringComparison.InvariantCultureIgnoreCase) == true)
+                isCJKLang = true;
+            else if (selectedLanguage.LanguageTag.StartsWith("ja", StringComparison.InvariantCultureIgnoreCase) == true)
+                isCJKLang = true;
+            else if (selectedLanguage.LanguageTag.StartsWith("ko", StringComparison.InvariantCultureIgnoreCase) == true)
+                isCJKLang = true;
+
             XmlLanguage lang = XmlLanguage.GetLanguage(selectedLanguage.LanguageTag);
             CultureInfo culture = lang.GetEquivalentCulture();
 
@@ -167,6 +193,8 @@ namespace Text_Grab
                 OcrEngine ocrEngine = OcrEngine.TryCreateFromLanguage(selectedLanguage);
                 OcrResult ocrResult = await ocrEngine.RecognizeAsync(softwareBmp);
 
+                ResultTable rt = new ResultTable(ocrResult);
+
                 if (singlePoint == null)
                 {
                     foreach (OcrLine line in ocrResult.Lines) text.AppendLine(line.Text);
@@ -193,7 +221,10 @@ namespace Text_Grab
                 {
                     List<string> wordArray = textLine.Split().ToList();
                     wordArray.Reverse();
-                    _ = text.Append(string.Join(' ', wordArray));
+                    if (isCJKLang == true)
+                        _ = text.Append(string.Join("", wordArray));
+                    else
+                        _ = text.Append(string.Join(' ', wordArray));
 
                     if (textLine.Length > 0)
                         _ = text.Append('\n');
@@ -272,7 +303,7 @@ namespace Text_Grab
             return bmp;
         }
 
-        private static Language? GetOCRLanguage()
+        public static Language? GetOCRLanguage()
         {
             // use currently selected Language
             string inputLang = InputLanguageManager.Current.CurrentInputLanguage.Name;

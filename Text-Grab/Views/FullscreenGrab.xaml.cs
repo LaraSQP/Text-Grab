@@ -22,6 +22,10 @@ namespace Text_Grab.Views
         private System.Windows.Point shiftPoint = new System.Windows.Point();
         private Border selectBorder = new Border();
 
+        private System.Windows.Forms.Screen? currentScreen { get; set; }
+
+        private DpiScale? dpiScale;
+
         private System.Windows.Point GetMousePos() => this.PointToScreen(Mouse.GetPosition(this));
 
         double selectLeft;
@@ -56,6 +60,9 @@ namespace Text_Grab.Views
 
             if (IsFreeze == false)
                 BackgroundBrush.Opacity = 0.2;
+
+            if (Settings.Default.FSGMakeSingleLineToggle == true)
+                SingleLineMenuItem.IsChecked = true;
         }
 
         private void FullscreenGrab_KeyUp(object sender, KeyEventArgs e)
@@ -99,6 +106,8 @@ namespace Text_Grab.Views
             selectBorder.Height = 1;
             selectBorder.Width = 1;
 
+            dpiScale = VisualTreeHelper.GetDpi(this);
+
             try { RegionClickCanvas.Children.Remove(selectBorder); } catch (Exception) { }
 
             selectBorder.BorderThickness = new Thickness(2);
@@ -107,6 +116,21 @@ namespace Text_Grab.Views
             _ = RegionClickCanvas.Children.Add(selectBorder);
             Canvas.SetLeft(selectBorder, clickedPoint.X);
             Canvas.SetTop(selectBorder, clickedPoint.Y);
+
+            var screens = System.Windows.Forms.Screen.AllScreens;
+            System.Drawing.Point formsPoint = new System.Drawing.Point((int)clickedPoint.X, (int)clickedPoint.Y);
+            foreach (var scr in screens)
+            {
+                if (scr.Bounds.Contains(formsPoint))
+                    currentScreen = scr;
+            }
+
+            if (currentScreen is not null)
+            {
+                Debug.WriteLine($"Current screen: Left{currentScreen.Bounds.Left} Right{currentScreen.Bounds.Right} Top{currentScreen.Bounds.Top} Bottom{currentScreen.Bounds.Bottom}");
+                Debug.WriteLine($"ClickedPoint X{clickedPoint.X} Y{clickedPoint.Y}");
+            }
+
         }
 
         private void SettingsMenuItem_Click(object sender, RoutedEventArgs e)
@@ -117,8 +141,8 @@ namespace Text_Grab.Views
 
         private void NewGrabFrameMenuItem_Click(object sender, RoutedEventArgs e)
         {
-            WindowUtilities.OpenOrActivateWindow<GrabFrame>();
-            WindowUtilities.CloseAllFullscreenGrabs();
+            // WindowUtilities.OpenOrActivateWindow<GrabFrame>();
+            // WindowUtilities.CloseAllFullscreenGrabs();
         }
 
         private void NewEditTextMenuItem_Click(object sender, RoutedEventArgs e)
@@ -162,11 +186,25 @@ namespace Text_Grab.Views
                 xShiftDelta = (movingPoint.X - shiftPoint.X);
                 yShiftDelta = (movingPoint.Y - shiftPoint.Y);
 
+                double leftValue = selectLeft + xShiftDelta;
+                double topValue = selectTop + yShiftDelta;
+
+                if (currentScreen is not null && dpiScale is not null)
+                {
+                    double currentScreenLeft = currentScreen.Bounds.Left; // Should always be 0
+                    double currentScreenRight = currentScreen.Bounds.Right / dpiScale.Value.DpiScaleX;
+                    double currentScreenTop = currentScreen.Bounds.Top; // Should always be 0
+                    double currentScreenBottom = currentScreen.Bounds.Bottom / dpiScale.Value.DpiScaleY;
+
+                    leftValue = Math.Clamp(leftValue, currentScreenLeft, (currentScreenRight - selectBorder.Width));
+                    topValue = Math.Clamp(topValue, currentScreenTop, (currentScreenBottom - selectBorder.Height));
+                }
+
                 clippingGeometry.Rect = new Rect(
-                    new System.Windows.Point(selectLeft + xShiftDelta, selectTop + yShiftDelta),
+                    new System.Windows.Point(leftValue, topValue),
                     new System.Windows.Size(selectBorder.Width - 2, selectBorder.Height - 2));
-                Canvas.SetLeft(selectBorder, selectLeft + xShiftDelta - 1);
-                Canvas.SetTop(selectBorder, selectTop + yShiftDelta - 1);
+                Canvas.SetLeft(selectBorder, leftValue - 1);
+                Canvas.SetTop(selectBorder, topValue - 1);
                 return;
             }
 
@@ -193,6 +231,7 @@ namespace Text_Grab.Views
                 return;
 
             isSelecting = false;
+            currentScreen = null;
             CursorClipper.UnClipCursor();
             RegionClickCanvas.ReleaseMouseCapture();
             Matrix m = PresentationSource.FromVisual(this).CompositionTarget.TransformToDevice;
@@ -227,6 +266,37 @@ namespace Text_Grab.Views
                 (int)(selectBorder.Height * m.M22));
 
             string grabbedText = "";
+
+            if (NewGrabFrameMenuItem.IsChecked == true)
+            {
+                // Make a new GrabFrame and show it on screen
+                // Then place it where the user just drew the region
+                // Add space around the window to account for titlebar
+                // bottom bar and width of GrabFrame
+                System.Windows.Point absPosPoint = this.GetAbsolutePosition();
+                DpiScale dpi = VisualTreeHelper.GetDpi(this);
+                int firstScreenBPP = System.Windows.Forms.Screen.AllScreens[0].BitsPerPixel;
+                GrabFrame grabFrame = new();
+                grabFrame.Show();
+                double posLeft = Canvas.GetLeft(selectBorder); // * dpi.DpiScaleX;
+                double posTop = Canvas.GetTop(selectBorder); // * dpi.DpiScaleY;
+                grabFrame.Left = posLeft + (absPosPoint.X / dpi.PixelsPerDip);
+                grabFrame.Top = posTop + (absPosPoint.Y / dpi.PixelsPerDip);
+
+                grabFrame.Left -= (2 / dpi.PixelsPerDip);
+                grabFrame.Top -= (34 / dpi.PixelsPerDip);
+                // if (grabFrame.Top < 0)
+                //     grabFrame.Top = 0;
+
+                if (selectBorder.Width > 20 && selectBorder.Height > 20)
+                {
+                    grabFrame.Width = selectBorder.Width + 4;
+                    grabFrame.Height = selectBorder.Height + 72;
+                }
+                grabFrame.Activate();
+                WindowUtilities.CloseAllFullscreenGrabs();
+                return;
+            }
 
             try { RegionClickCanvas.Children.Remove(selectBorder); } catch { }
 
@@ -267,6 +337,14 @@ namespace Text_Grab.Views
                 clippingGeometry.Rect = new Rect(
                 new System.Windows.Point(0, 0),
                 new System.Windows.Size(0, 0));
+            }
+        }
+
+        private void SingleLineMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem singleLineMenuItem)
+            {
+                Settings.Default.FSGMakeSingleLineToggle = singleLineMenuItem.IsChecked;
             }
         }
     }
