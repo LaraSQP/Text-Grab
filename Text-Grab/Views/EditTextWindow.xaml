@@ -277,6 +277,10 @@
                     Header="_Watch Clipboard For Changes"
                     IsCheckable="True"
                     IsChecked="False" />
+                <MenuItem
+                    x:Name="ReadFolderOfImages"
+                    Header="_Extract Text from Images in Folder"
+                    Click="ReadFolderOfImages_Click" />
             </MenuItem>
             <MenuItem Header="_Window">
                 <MenuItem
@@ -336,6 +340,9 @@
             ContextMenuOpening="PassedTextControl_ContextMenuOpening"
             FontSize="16"
             Foreground="White"
+            AllowDrop="True"
+            PreviewDragOver="ETWindow_DragOver"
+            PreviewDrop="ETWindow_Drop" 
             HorizontalScrollBarVisibility="Auto"
             IsInactiveSelectionHighlightEnabled="True"
             SelectionChanged="PassedTextControl_SelectionChanged"
@@ -385,7 +392,7 @@
                     ButtonText="Open Grab Frame"
                     Click="OpenGrabFrame_Click"
                     IsSymbol="True"
-                    SymbolText=""
+                    SymbolText=""
                     ToolTip="Open Grab Frame (CTRL + G)" />
                 <controls:CollapsibleButton
                     x:Name="SearchButton"

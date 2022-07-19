@@ -40,7 +40,7 @@ public partial class GrabFrame : Window
 
     public bool IsFromEditWindow { get; set; } = false;
 
-    public bool IsWordEditMode { get; set; } = false;
+    public bool IsWordEditMode { get; set; } = true;
 
     public bool IsFreezeMode { get; set; } = false;
 
@@ -56,6 +56,7 @@ public partial class GrabFrame : Window
         WindowResizer resizer = new(this);
         reDrawTimer.Interval = new(0, 0, 0, 0, 1200);
         reDrawTimer.Tick += ReDrawTimer_Tick;
+        reDrawTimer.Start();
 
         RoutedCommand newCmd = new();
         _ = newCmd.InputGestures.Add(new KeyGesture(Key.Escape));
@@ -171,7 +172,7 @@ public partial class GrabFrame : Window
                 X = (int)((windowPosition.X - 2) * dpi.DpiScaleX),
                 Y = (int)((windowPosition.Y + 24) * dpi.DpiScaleY)
             };
-            frameText = await ImageMethods.GetRegionsText(null, rectCanvasSize);
+            frameText = await ImageMethods.GetRegionsText(null, rectCanvasSize, null);
         }
 
         if (wordBorders.Count > 0)
@@ -229,7 +230,7 @@ public partial class GrabFrame : Window
             }
 
             if (isCJKLang == true)
-                outputString.Append(string.Join(" ", lineList));
+                outputString.Append(string.Join("", lineList));
             else
                 outputString.Append(string.Join(' ', lineList));
 
@@ -300,6 +301,13 @@ public partial class GrabFrame : Window
     {
         if (IsWordEditMode != true && IsFreezeMode != true)
             ResetGrabFrame();
+        else
+        {
+            RectanglesCanvas.Visibility = Visibility.Visible;
+            if (Keyboard.Modifiers != ModifierKeys.Alt)
+                wasAltHeld = false;
+        }
+
     }
 
     private async Task DrawRectanglesAroundWords(string searchWord = "")
@@ -1047,10 +1055,7 @@ public partial class GrabFrame : Window
         if (FreezeToggleButton.IsChecked is bool freezeMode && freezeMode == true)
             FreezeGrabFrame();
         else
-        {
-            ExitEditMode();
             UnfreezeGrabFrame();
-        }
 
         await Task.Delay(200);
 

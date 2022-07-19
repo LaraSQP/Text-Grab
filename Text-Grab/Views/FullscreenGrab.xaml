@@ -15,6 +15,18 @@
     Topmost="True"
     WindowStyle="None"
     mc:Ignorable="d">
+
+    <Window.Resources>
+        <Style x:Key="SymbolTextStyle" TargetType="TextBlock">
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Foreground" Value="White" />
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Viewbox>
             <Image x:Name="BackgroundImage" Stretch="UniformToFill" />
@@ -45,18 +57,16 @@
                 <ContextMenu>
                     <MenuItem
                         Name="SingleLineMenuItem"
-                        Header="Make Result Text Single Line"
                         Click="SingleLineMenuItem_Click"
+                        Header="Make Result Text Single Line"
                         IsCheckable="True" />
                     <MenuItem
                         Name="FreezeMenuItem"
                         Click="FreezeMenuItem_Click"
-                        Header="Freeze" />
+                        Header="Freeze"
+                        IsCheckable="True"
+                        IsChecked="True" />
                     <Separator />
-                    <MenuItem
-                        Name="SettingsMenuItem"
-                        Click="SettingsMenuItem_Click"
-                        Header="Settings" />
                     <MenuItem
                         Name="NewGrabFrameMenuItem"
                         Click="NewGrabFrameMenuItem_Click"
@@ -66,6 +76,10 @@
                         Name="NewEditTextMenuItem"
                         Click="NewEditTextMenuItem_Click"
                         Header="Edit Text Window" />
+                    <MenuItem
+                        Name="SettingsMenuItem"
+                        Click="SettingsMenuItem_Click"
+                        Header="Settings" />
                     <Separator />
                     <MenuItem
                         Name="CancelMenuItem"
@@ -74,5 +88,84 @@
                 </ContextMenu>
             </Canvas.ContextMenu>
         </Canvas>
+        <StackPanel
+            x:Name="TopButtonsStackPanel"
+            Margin="0"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Top"
+            Background="{StaticResource DarkControlBackground}"
+            Orientation="Horizontal"
+            Visibility="Collapsed">
+            <ComboBox x:Name="LanguagesComboBox" SelectionChanged="LanguagesComboBox_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FontFamily="Segoe UI"
+                            Style="{StaticResource SymbolTextStyle}"
+                            Text="{Binding LanguageTag}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <ToggleButton
+                Margin="4,0,0,4"
+                Click="SingleLineMenuItem_Click"
+                IsChecked="{Binding IsChecked, ElementName=SingleLineMenuItem, Mode=TwoWay}"
+                Style="{StaticResource ToggleSymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="(S) Make result a single line" />
+            </ToggleButton>
+            <ToggleButton
+                Margin="0,0,0,4"
+                Click="FreezeMenuItem_Click"
+                IsChecked="{Binding IsChecked, ElementName=FreezeMenuItem, Mode=TwoWay}"
+                Style="{StaticResource ToggleSymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="(F) Freeze what is on screens" />
+            </ToggleButton>
+
+            <ToggleButton
+                Margin="4,0,0,4"
+                Click="NewGrabFrameMenuItem_Click"
+                IsChecked="{Binding IsChecked, ElementName=NewGrabFrameMenuItem, Mode=TwoWay}"
+                Style="{StaticResource ToggleSymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="(G) Place a Grab Frame" />
+            </ToggleButton>
+            <Button
+                Margin="0,0,0,4"
+                Click="NewEditTextMenuItem_Click"
+                Style="{StaticResource SymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="Open an Edit Text Window" />
+            </Button>
+            <Button
+                Margin="0,0,0,4"
+                Click="SettingsMenuItem_Click"
+                Style="{StaticResource SymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="Settings" />
+            </Button>
+            <Button
+                Margin="4,0,4,4"
+                Click="CancelMenuItem_Click"
+                Style="{StaticResource SymbolButton}">
+                <TextBlock
+                    Style="{StaticResource SymbolTextStyle}"
+                    Text=""
+                    ToolTip="(Esc) Cancel" />
+            </Button>
+        </StackPanel>
     </Grid>
 </Window>
