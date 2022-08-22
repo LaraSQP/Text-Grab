@@ -50,11 +50,10 @@ public partial class GrabFrame : Window
     {
         InitializeComponent();
 
-        this.PreviewMouseWheel += HandlePreviewMouseWheel;
         SetRestoreState();
 
         WindowResizer resizer = new(this);
-        reDrawTimer.Interval = new(0, 0, 0, 0, 1200);
+        reDrawTimer.Interval = new(0, 0, 0, 0, 1500);
         reDrawTimer.Tick += ReDrawTimer_Tick;
         reDrawTimer.Start();
 
@@ -65,8 +64,54 @@ public partial class GrabFrame : Window
 
     public void GrabFrame_Loaded(object sender, RoutedEventArgs e)
     {
+        this.PreviewMouseWheel += HandlePreviewMouseWheel;
         this.PreviewKeyDown += Window_PreviewKeyDown;
         this.PreviewKeyUp += Window_PreviewKeyUp;
+    }
+
+    public void GrabFrame_Unloaded(object sender, RoutedEventArgs e)
+    {
+        this.Activated -= GrabFrameWindow_Activated;
+        this.Closed -= Window_Closed;
+        this.Deactivated -= GrabFrameWindow_Deactivated;
+        this.DragLeave -= GrabFrameWindow_DragLeave;
+        this.DragOver -= GrabFrameWindow_DragOver;
+        this.Loaded -= GrabFrame_Loaded;
+        this.LocationChanged -= Window_LocationChanged;
+        this.SizeChanged -= Window_SizeChanged;
+        this.Unloaded -= GrabFrame_Unloaded;
+        this.PreviewMouseWheel -= HandlePreviewMouseWheel;
+        this.PreviewKeyDown -= Window_PreviewKeyDown;
+        this.PreviewKeyUp -= Window_PreviewKeyUp;
+
+        reDrawTimer.Stop();
+        reDrawTimer.Tick -= ReDrawTimer_Tick;
+
+        MinimizeButton.Click -= OnMinimizeButtonClick;
+        RestoreButton.Click -= OnRestoreButtonClick;
+        CloseButton.Click -= OnCloseButtonClick;
+
+        RectanglesCanvas.MouseDown -= RectanglesCanvas_MouseDown;
+        RectanglesCanvas.MouseMove -= RectanglesCanvas_MouseMove;
+        RectanglesCanvas.MouseUp -= RectanglesCanvas_MouseUp;
+
+        AspectRationMI.Checked -= AspectRationMI_Checked;
+        AspectRationMI.Unchecked -= AspectRationMI_Checked;
+        FreezeMI.Click -= FreezeMI_Click;
+
+        SearchBox.GotFocus -= SearchBox_GotFocus;
+        SearchBox.TextChanged -= SearchBox_TextChanged;
+
+        ClearBTN.Click -= ClearBTN_Click;
+        ExactMatchChkBx.Click -= ExactMatchChkBx_Click;
+
+        RefreshBTN.Click -= RefreshBTN_Click;
+        FreezeToggleButton.Click -= FreezeToggleButton_Click;
+        TableToggleButton.Click -= TableToggleButton_Click;
+        EditToggleButton.Click -= EditToggleButton_Click;
+        SettingsBTN.Click -= SettingsBTN_Click;
+        EditTextBTN.Click -= EditTextBTN_Click;
+        GrabBTN.Click -= GrabBTN_Click;
     }
 
     private void Window_PreviewKeyUp(object sender, KeyEventArgs e)
@@ -240,7 +285,7 @@ public partial class GrabFrame : Window
         if (IsFromEditWindow == false
             && string.IsNullOrWhiteSpace(frameText) == false
             && Settings.Default.NeverAutoUseClipboard == false)
-            Clipboard.SetText(frameText);
+            Clipboard.SetDataObject(frameText, true);
 
         if (Settings.Default.ShowToast == true
             && IsFromEditWindow == false)
@@ -258,7 +303,7 @@ public partial class GrabFrame : Window
         MatchesTXTBLK.Text = "Matches: 0";
     }
 
-    private void Window_LocationChanged(object sender, EventArgs e)
+    private void Window_LocationChanged(object? sender, EventArgs e)
     {
         if (IsLoaded == false || IsFreezeMode == true)
             return;
@@ -297,7 +342,7 @@ public partial class GrabFrame : Window
         }
     }
 
-    private void GrabFrameWindow_Deactivated(object sender, EventArgs e)
+    private void GrabFrameWindow_Deactivated(object? sender, EventArgs e)
     {
         if (IsWordEditMode != true && IsFreezeMode != true)
             ResetGrabFrame();
@@ -330,8 +375,10 @@ public partial class GrabFrame : Window
             Y = (int)((windowPosition.Y + 24) * dpi.DpiScaleY)
         };
 
+        double scale = 1;
+
         if (ocrResultOfWindow == null || ocrResultOfWindow.Lines.Count == 0)
-            ocrResultOfWindow = await ImageMethods.GetOcrResultFromRegion(rectCanvasSize);
+            (ocrResultOfWindow, scale) = await ImageMethods.GetOcrResultFromRegion(rectCanvasSize);
 
         Windows.Globalization.Language? currentLang = ImageMethods.GetOCRLanguage();
 
@@ -362,8 +409,8 @@ public partial class GrabFrame : Window
 
                 WordBorder wordBorderBox = new WordBorder
                 {
-                    Width = (ocrWord.BoundingRect.Width / dpi.DpiScaleX),
-                    Height = (ocrWord.BoundingRect.Height / dpi.DpiScaleY),
+                    Width = (ocrWord.BoundingRect.Width / (dpi.DpiScaleX * scale)),
+                    Height = (ocrWord.BoundingRect.Height / (dpi.DpiScaleY * scale)),
                     Word = wordString,
                     ToolTip = wordString,
                     LineNumber = lineNumber,
@@ -390,8 +437,8 @@ public partial class GrabFrame : Window
 
                 wordBorders.Add(wordBorderBox);
                 _ = RectanglesCanvas.Children.Add(wordBorderBox);
-                Canvas.SetLeft(wordBorderBox, (ocrWord.BoundingRect.Left / dpi.DpiScaleX));
-                Canvas.SetTop(wordBorderBox, (ocrWord.BoundingRect.Top / dpi.DpiScaleY));
+                Canvas.SetLeft(wordBorderBox, (ocrWord.BoundingRect.Left / (dpi.DpiScaleX * scale)));
+                Canvas.SetTop(wordBorderBox, (ocrWord.BoundingRect.Top / (dpi.DpiScaleY * scale)));
             }
 
             lineNumber++;
@@ -863,7 +910,7 @@ public partial class GrabFrame : Window
         WindowUtilities.OpenOrActivateWindow<SettingsWindow>();
     }
 
-    private void GrabFrameWindow_Activated(object sender, EventArgs e)
+    private void GrabFrameWindow_Activated(object? sender, EventArgs e)
     {
         if (IsWordEditMode != true && IsFreezeMode != true)
             reDrawTimer.Start();
@@ -1136,7 +1183,7 @@ public partial class GrabFrame : Window
 
     // If the data object in args is a single file, this method will return the filename.
     // Otherwise, it returns null.
-    private string? IsSingleFile(DragEventArgs args)
+    private static string? IsSingleFile(DragEventArgs args)
     {
         // Check for files in the hovering data object.
         if (args.Data.GetDataPresent(DataFormats.FileDrop, true))

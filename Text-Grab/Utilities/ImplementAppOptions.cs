@@ -1,8 +1,5 @@
 ﻿using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel;
 
@@ -29,7 +26,10 @@ internal class ImplementAppOptions
         {
             App app = (App)App.Current;
             if (app.TextGrabIcon != null)
+            {
                 app.TextGrabIcon.Dispose();
+                app.TextGrabIcon = null;
+            }
         }
     }
 

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -21,7 +22,11 @@ using Text_Grab.Properties;
 using Text_Grab.Utilities;
 using Text_Grab.Views;
 using Windows.ApplicationModel.DataTransfer;
+using Windows.Globalization;
+using Windows.Graphics.Imaging;
+using Windows.Media.Ocr;
 using Windows.System;
+using BitmapDecoder = Windows.Graphics.Imaging.BitmapDecoder;
 
 namespace Text_Grab;
 
@@ -62,7 +67,6 @@ public partial class EditTextWindow : Window
     public static RoutedCommand InsertSelectionOnEveryLineCmd = new();
 
     private int numberOfContextMenuItems;
-    private bool IsDragOver;
 
     private List<string> imageExtensions = new() { ".png", ".bmp", ".jpg", ".jpeg", ".tiff", ".gif" };
 
@@ -245,8 +249,8 @@ public partial class EditTextWindow : Window
     private void SelectionContainsNewLinesCmdCanExecute(object sender, CanExecuteRoutedEventArgs e)
     {
         if (PassedTextControl.SelectedText.Contains(Environment.NewLine)
-            || PassedTextControl.SelectedText.Contains("\r")
-            || PassedTextControl.SelectedText.Contains("\n"))
+            || PassedTextControl.SelectedText.Contains('\r')
+            || PassedTextControl.SelectedText.Contains('\n'))
             e.CanExecute = true;
         else
             e.CanExecute = false;
@@ -360,11 +364,10 @@ public partial class EditTextWindow : Window
         OpenedFilePath = pathOfFileToOpen;
         Title = $"Edit Text | {pathOfFileToOpen.Split('\\').LastOrDefault()}";
 
-        using (StreamReader sr = File.OpenText(pathOfFileToOpen))
-        {
-            string s = await sr.ReadToEndAsync();
-            PassedTextControl.Text = s;
-        }
+        using StreamReader sr = File.OpenText(pathOfFileToOpen);
+        
+        string s = await sr.ReadToEndAsync();
+        PassedTextControl.Text = s;
     }
 
     private void MoveLineDown(object? sender, ExecutedRoutedEventArgs? e)
@@ -433,7 +436,7 @@ public partial class EditTextWindow : Window
     private void CopyCloseBTN_Click(object sender, RoutedEventArgs e)
     {
         string clipboardText = PassedTextControl.Text;
-        System.Windows.Clipboard.SetText(clipboardText);
+        System.Windows.Clipboard.SetDataObject(clipboardText, true);
         this.Close();
     }
 
@@ -607,8 +610,8 @@ public partial class EditTextWindow : Window
     {
         if (string.IsNullOrEmpty(PassedTextControl.SelectedText)
             || PassedTextControl.SelectedText.Contains(Environment.NewLine)
-            || PassedTextControl.SelectedText.Contains("\r")
-            || PassedTextControl.SelectedText.Contains("\n"))
+            || PassedTextControl.SelectedText.Contains('\r')
+            || PassedTextControl.SelectedText.Contains('\n'))
             e.CanExecute = false;
         else
             e.CanExecute = true;
@@ -638,7 +641,7 @@ public partial class EditTextWindow : Window
             if (line.Length >= selectionPositionInLine
                 && line.Length >= (selectionPositionInLine + selectionLength))
             {
-                if (line.Substring(selectionPositionInLine, selectionLength) != selectionText)
+                if (line.AsSpan(selectionPositionInLine, selectionLength) != selectionText)
                     sb.Append(line.Insert(selectionPositionInLine, selectionText));
                 else
                     sb.Append(line);
@@ -1181,11 +1184,11 @@ public partial class EditTextWindow : Window
                 listOfNames.Append(chosenFolderPath).Append(Environment.NewLine).Append(Environment.NewLine);
                 foreach (string folder in folders)
                 {
-                    listOfNames.Append($"{folder.Substring(1 + chosenFolderPath.Length, (folder.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
+                    listOfNames.Append($"{folder.AsSpan(1 + chosenFolderPath.Length, (folder.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
                 }
                 foreach (string file in files)
                 {
-                    listOfNames.Append($"{file.Substring(1 + chosenFolderPath.Length, (file.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
+                    listOfNames.Append($"{file.AsSpan(1 + chosenFolderPath.Length, (file.Length - 1) - chosenFolderPath.Length)}{Environment.NewLine}");
                 }
 
                 PassedTextControl.AppendText(listOfNames.ToString());
@@ -1205,10 +1208,8 @@ public partial class EditTextWindow : Window
         if (result is not System.Windows.Forms.DialogResult.OK)
             return;
 
-        StringBuilder ocrResults = new();
+        Mouse.OverrideCursor = System.Windows.Input.Cursors.Wait;
         string chosenFolderPath = folderBrowserDialog.SelectedPath;
-        ocrResults.AppendLine(chosenFolderPath);
-        ocrResults.AppendLine(DateTime.Now.ToString()).AppendLine();
 
         IEnumerable<String>? files = null;
         IEnumerable<String>? folders = null;
@@ -1225,6 +1226,16 @@ public partial class EditTextWindow : Window
         if (files is null)
             return;
 
+        PassedTextControl.AppendText(chosenFolderPath);
+        PassedTextControl.AppendText(Environment.NewLine);
+        PassedTextControl.AppendText(DateTime.Now.ToString());
+        PassedTextControl.AppendText(Environment.NewLine);
+        PassedTextControl.AppendText($"{files.Where(x => imageExtensions.Contains(Path.GetExtension(x))).Count()} image files found");
+        PassedTextControl.AppendText(Environment.NewLine);
+        PassedTextControl.AppendText(Environment.NewLine);
+
+        StringBuilder ocrResults = new();
+
         foreach (string file in files)
         {
             if (imageExtensions.Contains(Path.GetExtension(file)) == false)
@@ -1235,6 +1246,7 @@ public partial class EditTextWindow : Window
             try
             {
                 BitmapImage droppedImage = new(fileURI);
+                droppedImage.Freeze();
                 Bitmap bmp = ImageMethods.BitmapImageToBitmap(droppedImage);
                 ocrResults.AppendLine(await ImageMethods.ExtractText(bmp));
             }
@@ -1245,6 +1257,7 @@ public partial class EditTextWindow : Window
         }
 
         PassedTextControl.AppendText(ocrResults.ToString());
+        Mouse.OverrideCursor = null;
     }
 
     private async void FSGDelayMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1340,6 +1353,7 @@ public partial class EditTextWindow : Window
         try
         {
             BitmapImage droppedImage = new(fileURI);
+            droppedImage.Freeze();
             Bitmap bmp = ImageMethods.BitmapImageToBitmap(droppedImage);
             PassedTextControl.AppendText(await ImageMethods.ExtractText(bmp));
         }
@@ -1370,7 +1384,7 @@ public partial class EditTextWindow : Window
 
     // If the data object in args is a single file, this method will return the filename.
     // Otherwise, it returns null.
-    private string? IsSingleFile(System.Windows.DragEventArgs args)
+    private static string? IsSingleFile(System.Windows.DragEventArgs args)
     {
         // Check for files in the hovering data object.
         if (args.Data.GetDataPresent(System.Windows.DataFormats.FileDrop, true))
@@ -1392,31 +1406,30 @@ public partial class EditTextWindow : Window
 
     // from StackOverflow user bytedev read on July 12th 2022
     // https://stackoverflow.com/a/64038750/7438031
-    public bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
+    public static bool IsBinary(string filePath, int requiredConsecutiveNul = 1)
     {
         const int charsToCheck = 8000;
         const char nulChar = '\0';
 
         int nulCount = 0;
 
-        using (var streamReader = new StreamReader(filePath))
+        using StreamReader streamReader = new(filePath);
+        
+        for (var i = 0; i < charsToCheck; i++)
         {
-            for (var i = 0; i < charsToCheck; i++)
+            if (streamReader.EndOfStream)
+                return false;
+
+            if ((char)streamReader.Read() == nulChar)
             {
-                if (streamReader.EndOfStream)
-                    return false;
+                nulCount++;
 
-                if ((char)streamReader.Read() == nulChar)
-                {
-                    nulCount++;
-
-                    if (nulCount >= requiredConsecutiveNul)
-                        return true;
-                }
-                else
-                {
-                    nulCount = 0;
-                }
+                if (nulCount >= requiredConsecutiveNul)
+                    return true;
+            }
+            else
+            {
+                nulCount = 0;
             }
         }
 
