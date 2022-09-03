@@ -402,6 +402,10 @@ public partial class FullscreenGrab : Window
             (int)(selectBorder.Width * m.M11),
             (int)(selectBorder.Height * m.M22));
 
+        clippingGeometry.Rect = new Rect(
+            new System.Windows.Point(0, 0),
+            new System.Windows.Size(0, 0));
+
         string grabbedText = "";
 
         if (NewGrabFrameMenuItem.IsChecked == true)
@@ -461,7 +465,7 @@ public partial class FullscreenGrab : Window
 
             if (Settings.Default.NeverAutoUseClipboard == false
                 && EditWindow is null)
-                Clipboard.SetDataObject(grabbedText, true);
+                try { Clipboard.SetDataObject(grabbedText, true); } catch { }
 
             if (Settings.Default.ShowToast
                 && EditWindow is null)
@@ -475,9 +479,6 @@ public partial class FullscreenGrab : Window
         else
         {
             BackgroundBrush.Opacity = .2;
-            clippingGeometry.Rect = new Rect(
-            new System.Windows.Point(0, 0),
-            new System.Windows.Size(0, 0));
         }
     }
 
